@@ -1,0 +1,76 @@
+{syntax double}{{$php|noescape}} namespace App{{$module}}\Models;
+abstract class BaseRepository extends \Nette\Object {
+	/** @var \Nette\Database\Context */
+	protected $database;
+	/** @var string */
+	protected $table;
+
+	public function __construct($table, \Nette\Database\Context $database) {
+		list($this->table, $this->database) = func_get_args();
+	}
+
+	/**
+	 * Return table rows
+	 * @param array $where
+	 * @param array $order
+	 * @param array $limit
+	 * @param array $what
+	 * @return \Nette\Database\Table\Selection
+	 */
+	public function getAll(array $where = NULL, array $order = NULL, array $limit = NULL, array $what = NULL) {
+		$table = $this->database->table($this->table);
+		if (!empty($what)) foreach ($what as $k => $v) $table->select("$k $v");
+		if (!empty($where)) foreach ($where as $w) if (isset($w['col']) && isset($w['mod']) && $w['val'] !== '') {
+			switch ($w['mod']) {
+				case 'IS NULL': $table->where($w['col'] . ' IS NULL'); break;
+				case 'IS NOT NULL': $table->where($w['col'] . ' IS NOT NULL'); break;
+				default: $table->where($w['col'] . ' ' . $w['mod'] . ' ?', in_array($w['mod'], ['LIKE', 'NOT LIKE']) ? "%{$w['val']}%" : $w['val']); break;
+			}
+		}
+		if (!empty($order)) foreach ($order as $o) $table->order(mb_strpos($o, '-') === 0 ? (mb_substr($o, 1) . ' DESC') : $o);
+		if (!empty($limit)) $table->limit($limit['lim'], $limit['off']);
+		if (!empty($what) && array_values($what) === ['key', 'value']) return $table->fetchAll();
+		return $table;
+	}
+
+	/**
+	 * Return count of pages needed for show table rows
+	 * @param array $where
+	 * @param array $limit
+	 * @return integer
+	 */
+	public function getPages(array $where = NULL, array $limit = NULL) {
+		$table = $this->getAll($where, [], [], ['CEIL(COUNT(*) / ' . (int)$limit['lim'] . ')' => 'count']);
+		if (!empty($table)) return (int)$table->fetch()->count;
+	}
+
+	/**
+	 * Return table row
+	 * @param string $primaryKey
+	 * @return \Nette\Database\Table\ActiveRow
+	 */
+	public function get($primaryKey) {
+		return $this->database->table($this->table)->get($primaryKey);
+	}
+
+	/**
+	 * Save table row
+	 * @param type $primaryKey
+	 * @param type $values
+	 * @return \Nette\Database\Table\ActiveRow|boolean
+	 */
+	public function save($primaryKey, array $values) {
+		$table = $this->database->table($this->table);
+		foreach ($values as $key => $value) if ($value === '') $values[$key] = NULL;
+		return ($primaryKey = $primaryKey ?: FALSE) ? (($row = $this->get($primaryKey)) ? $row->update($values) : FALSE) : $table->insert($values);
+	}
+
+	/**
+	 * Remove table row
+	 * @param string $primaryKey
+	 * @return boolean
+	 */
+	public function remove($primaryKey) {
+		return (bool)(($row = $this->get($primaryKey)) ? $row->delete() : FALSE);
+	}
+}

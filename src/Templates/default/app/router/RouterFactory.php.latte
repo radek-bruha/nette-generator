@@ -1,0 +1,18 @@
+{syntax double}{{$php|noescape}} namespace App;
+use Nette\Application\Routers\RouteList, Nette\Application\Routers\Route;
+
+class RouterFactory {
+	/** @return \Nette\Application\IRouter */
+	public static function createRouter() {
+		$router = new RouteList();
+		{{if $module}}
+		{{? $module =  mb_substr($module, 1, -6)}}
+		$router[] = new Route('', '{{$module}}:{{array_values($tables)[0]->sanitizedName}}:list', Route::ONE_WAY);
+		$router[] = ${{lcfirst($module)}}Router = new RouteList('{{$module}}');
+		${{lcfirst($module)}}Router[] = new Route('[<locale=en en|cz|sk>/]{{lcfirst($module) . '/'}}<presenter>/<action>', '{{array_values($tables)[0]->sanitizedName}}:list');
+		{{else}}
+		$router[] = new Route('[<locale=en en|cz|sk>/]<presenter>/<action>', '{{array_values($tables)[0]->sanitizedName}}:list');
+		{{/if}}
+		return $router;
+	}
+}

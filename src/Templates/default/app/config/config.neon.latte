@@ -1,0 +1,6 @@
+{syntax double}{{? $netteConfig['nette']['database']['default']['reflection'] = $source === \Utils\Constants::SOURCE_MYSQL_CONVENTIONAL ? 'conventional' : 'discovered'}}
+{{? $netteConfig['services']['permissions'] = new \Nette\Neon\Entity('App' . "$module\Models\Permissions", NULL)}}
+{{foreach $tables as $table}}
+{{? $netteConfig['services'][lcfirst($table->sanitizedName) . 'Repository'] = new \Nette\Neon\Entity('App' . "$module\Models\\$table->sanitizedName" . 'Repository', [$table->name])}}
+{{/foreach}}
+{{str_replace('()', '', preg_replace('~(^[\r\n]*|[\r\n]+)[\s\t]*[\r\n]+~', "\n", (new \Nette\Neon\Encoder)->encode($netteConfig, \Nette\Neon\Encoder::BLOCK)))}}

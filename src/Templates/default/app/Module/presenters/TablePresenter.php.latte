@@ -1,0 +1,297 @@
+{syntax double}{{$php|noescape}} namespace App{{$module}}\Presenters;
+use	\Nette\Application\UI\Form;
+
+class {{$table->sanitizedName}}Presenter extends BasePresenter {
+	/** @var \App{{$module}}\Models\{{$table->sanitizedName}}Repository @inject */
+	public $repository;
+	{{foreach $table->columns as $column}}
+		{{foreach $column->keys as $key}}
+			{{if $key instanceof \Bruha\Generator\Utils\Object\Key\ForeignKey}}
+	/** @var \App{{$module}}\Models\{{$key->table->sanitizedName}}Repository @inject */
+	public ${{lcfirst($key->table->sanitizedName)}}Repository;
+			{{/if}}
+		{{/foreach}}
+	{{/foreach}}
+
+	public function startup() {
+		parent::startup();
+		$this->columns = [
+		{{foreach $table->columns as $column}}
+			{{var $isForeignKey = FALSE}}
+			{{foreach $column->keys as $key}}
+				{{if $key instanceof \Bruha\Generator\Utils\Object\Key\ForeignKey}}
+					{{var $isForeignKey = $key}}
+				{{/if}}
+			{{/foreach}}
+			{{if $isForeignKey}}
+			{{if $target === \Utils\Constants::TARGET_NETTE_DATABASE}}
+			'{{$column->name}}.{{$key->value}}' => '{{$column->comment ?: $column->name}}',
+			{{else}}
+			'{{$key->table->name}}.{{$key->value}}' => '{{$column->comment ?: $column->name}}',
+			{{/if}}			
+			{{else}}
+			'{{$table->name}}.{{$column->name}}' => '{{$column->comment ?: $column->name}}',
+			{{/if}}
+			{{var $isForeignKey = FALSE}}
+		{{/foreach}}
+		];
+	}
+
+	protected function createComponentChangeTable() {
+		$form = new Form();
+		$form->addHidden('primaryKey', $this->primaryKey);
+		{{foreach $table->columns as $column}}
+			{{var $isPrimaryKey = FALSE}}
+			{{foreach $column->keys as $key}}
+				{{if $key instanceof \Bruha\Generator\Utils\Object\Key\PrimaryKey && mb_strpos($column->extra, auto_increment) !== FALSE}}
+					{{? $isPrimaryKey = TRUE}}
+				{{/if}}
+			{{/foreach}}
+			{{var $isForeignKey = FALSE}}
+			{{foreach $column->keys as $key}}
+				{{if $key instanceof \Bruha\Generator\Utils\Object\Key\ForeignKey}}
+					{{? $isForeignKey = $key}}
+				{{/if}}
+			{{/foreach}}
+			{{continueIf $isPrimaryKey}}
+		if(!$this->primaryKey && $this->user->isAllowed('{{lcfirst($table->sanitizedName)}}{{$column->sanitizedName}}', 'add') || $this->primaryKey && $this->user->isAllowed('{{lcfirst($table->sanitizedName)}}{{$column->sanitizedName}}', 'edit')) {
+			{{* Generate HTML4 input types *}}
+			{{var $translator = "\$this->translator->translate('generator.presenter." . lcfirst($table->sanitizedName) . ".component.change.$column->name')"}}
+			{{if $column->type->name === 'boolean'}}
+				{{if $column->nullable}}
+			$form->addSelect('{{$column->name}}', {{$translator|noescape}}, ['NULL' => '', 0 => 'FALSE', 1 => 'TRUE'])
+				{{else}}
+			$form->addSelect('{{$column->name}}', {{$translator|noescape}}, [0 => 'FALSE', 1 => 'TRUE'])
+				{{/if}}
+			{{elseif in_array($column->type->name, ['enum', 'set'], TRUE)}}
+				{{var $options = '['}}
+				{{if $column->nullable}}{{? $options .= "'NULL' => '',"}}{{/if}}
+				{{foreach $column->type->extra as $option}}
+					{{? $options .= "'$option' => '$option', "}}
+				{{/foreach}}
+				{{? $options .= ']'}}
+			$form->addSelect('{{$column->name}}', {{$translator|noescape}}, {{str_replace(', ]', ']', $options)|noescape}})
+			{{elseif in_array($column->type->name, ['text', 'mediumtext', 'longtext', 'blob', 'mediumblob', 'longblob'], TRUE) || in_array($column->type->name, ['varchar', 'char'], TRUE) && $column->type->length >= 250}}
+			$form->addTextArea('{{$column->name}}', {{$translator|noescape}})
+			{{else}}
+				{{if $isForeignKey}}
+			$form->addText('{{$column->name}}', {{$translator|noescape}})->setAttribute('readonly', 'readonly')
+				->setAttribute('data-table-target', '{{$isForeignKey->table->sanitizedName}}:list')
+				{{else}}
+			$form->addText('{{$column->name}}', {{$translator|noescape}})
+				{{/if}}
+			{{/if}}
+			{{* Generate HTML5 input types *}}
+			{{if !$isForeignKey && !in_array($column->type->name, ['boolean', 'enum', 'set'], TRUE)}}
+				{{if in_array($column->type->name, ['tinyint', 'smallint', 'mediumint', 'int', 'bigint', 'year'], TRUE)}}
+				->setType('number')
+				{{elseif $column->type->name === 'date'}}
+				->setType('date')
+				{{elseif $column->type->name === 'time'}}
+				->setType('time')
+				{{elseif in_array($column->type->name, ['datetime', 'timestamp'], TRUE)}}
+				->setType('datetime')
+				{{/if}}
+			{{/if}}
+			{{* Generate default values *}}
+			{{if $column->default !== FALSE}}
+				{{$column->default === 'CURRENT_TIMESTAMP' ? "->setDefaultValue((new \DateTime)->format('Y-m-d H:i:s'))" : "->setDefaultValue('$column->default')"|noescape}}
+			{{/if}}
+			{{* Generate placeholders *}}
+			{{? $translator = "\$this->translator->translate('generator.presenter." . lcfirst($table->sanitizedName) . ".component.change.$column->name')"}}
+				->setAttribute('placeholder', {{$translator|noescape}})
+			{{* Generate required validator *}}
+			{{if !$column->nullable  && $column->default === FALSE && mb_strpos($column->extra, 'on update CURRENT_TIMESTAMP') === FALSE && mb_strpos($column->extra, auto_increment) === FALSE}}
+				->addRule(Form::FILLED, $this->translator->translate('generator.common.component.validator.fill'))
+			{{else}}
+				->addCondition(Form::FILLED) {{* Not Working properly with HTML5 validations :/ *}}
+			{{/if}}
+			{{* Generate number validator *}}
+			{{if !$isForeignKey && in_array($column->type->name, ['tinyint', 'smallint', 'mediumint', 'int', 'bigint'], TRUE)}}
+				->addRule(Form::INTEGER, $this->translator->translate('generator.common.component.validator.integer'))
+				{{if $column->type->name === tinyint && mb_strpos($column->type->extra, unsigned) !== FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [0, 255]), [0, 255])
+				{{elseif $column->type->name === tinyint && mb_strpos($column->type->extra, unsigned) === FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [-128, 127]), [-128, 127])
+				{{elseif $column->type->name === smallint && mb_strpos($column->type->extra, unsigned) !== FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [0, 65535]), [0, 65535])
+				{{elseif $column->type->name === smallint && mb_strpos($column->type->extra, unsigned) === FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [-32768, 32767]), [-32768, 32767])
+				{{elseif $column->type->name === mediumint && mb_strpos($column->type->extra, unsigned) !== FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [0, 16777215]), [0, 16777215])
+				{{elseif $column->type->name === mediumint && mb_strpos($column->type->extra, unsigned) === FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [-8388608, 8388607]), [-8388608, 8388607])
+				{{elseif $column->type->name === int && mb_strpos($column->type->extra, unsigned) !== FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [0, 4294967295]), [0, 4294967295])
+				{{elseif $column->type->name === int && mb_strpos($column->type->extra, unsigned) === FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [-2147483648, 2147483647]), [-2147483648, 2147483647])
+				{{elseif $column->type->name === bigint && mb_strpos($column->type->extra, unsigned) !== FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [0, 18446744073709551615]), [0, 18446744073709551615])
+				{{elseif $column->type->name === bigint && mb_strpos($column->type->extra, unsigned) === FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [-9223372036854775808, 9223372036854775807])
+				{{elseif $column->type->name === year && (int)$column->type->length === 4}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [1901, 2155]), [1901, 2155])
+				{{elseif $column->type->name === year && mb_strpos($column->type->extra, unsigned) === FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [0, 99]), [0, 99])
+				{{/if}}
+			{{/if}}
+			{{if !$isForeignKey && in_array($column->type->name, ['float', 'double', 'decimal'], TRUE)}}
+				->addRule(Form::FLOAT, $this->translator->translate('generator.common.component.validator.float'))
+			{{/if}}
+			{{* Generate string validator *}}
+			{{if !$isForeignKey && in_array($column->type->name, ['char', 'varchar', 'tinytext', 'text', 'mediumtext', 'longtext', 'binary', 'varbinary', 'tinyblob', 'blob', 'mediumblob', 'longblob'], TRUE)}}
+				{{if in_array($column->type->name, ['char', 'varchar', 'binary', 'varbinary'], TRUE)}}
+				->addRule(Form::MAX_LENGTH, $this->translator->translate('generator.common.component.validator.length', NULL, [{{$column->type->length}}]), {{$column->type->length}})
+				{{elseif in_array($column->type->name, ['tinytext', 'tinyblob'], TRUE)}}
+				->addRule(Form::MAX_LENGTH, $this->translator->translate('generator.common.component.validator.length', NULL, [255]), 255)
+				{{elseif in_array($column->type->name, ['text', 'blob'], TRUE)}}
+				->addRule(Form::MAX_LENGTH, $this->translator->translate('generator.common.component.validator.length', NULL, [65535]), 65535)
+				{{elseif in_array($column->type->name, ['mediumtext', 'mediumblob'], TRUE)}}
+				->addRule(Form::MAX_LENGTH, $this->translator->translate('generator.common.component.validator.length', NULL, [16777215]), 16777215)
+				{{elseif in_array($column->type->name, ['longtext', 'longblob'], TRUE)}}
+				->addRule(Form::MAX_LENGTH, $this->translator->translate('generator.common.component.validator.length', NULL, [4294967295]), 4294967295)
+				{{/if}}
+			{{/if}}
+		;}
+		{{/foreach}}
+		$form->addSubmit('send', $this->translator->translate('generator.common.component.control.save'));
+		$form->onSuccess[] = $this->changeSubmit;
+		if ($this->primaryKey) $form->setDefaults($this->repository->get($this->primaryKey) ?: []);
+		return $form;
+	}
+
+	protected function createComponentChangeSelect() {
+		$form = new Form();
+		$form->addHidden('primaryKey', $this->primaryKey);
+		{{foreach $table->columns as $column}}
+			{{var $isPrimaryKey = FALSE}}
+			{{foreach $column->keys as $key}}
+				{{if $key instanceof \Bruha\Generator\Utils\Object\Key\PrimaryKey && mb_strpos($column->extra, auto_increment) !== FALSE}}
+					{{? $isPrimaryKey = TRUE}}
+				{{/if}}
+			{{/foreach}}
+			{{var $isForeignKey = FALSE}}
+			{{foreach $column->keys as $key}}
+				{{if $key instanceof \Bruha\Generator\Utils\Object\Key\ForeignKey}}
+					{{? $isForeignKey = $key}}
+				{{/if}}
+			{{/foreach}}
+			{{continueIf $isPrimaryKey}}
+		if(!$this->primaryKey && $this->user->isAllowed('{{lcfirst($table->sanitizedName)}}{{$column->sanitizedName}}', 'add') || $this->primaryKey && $this->user->isAllowed('{{lcfirst($table->sanitizedName)}}{{$column->sanitizedName}}', 'edit')) {
+			{{* Generate HTML4 input types *}}
+			{{var $translator = "\$this->translator->translate('generator.presenter." . lcfirst($table->sanitizedName) . ".component.change.$column->name')"}}
+			{{if $column->type->name === 'boolean'}}
+				{{if $column->nullable}}
+			$form->addSelect('{{$column->name}}', {{$translator|noescape}}, ['NULL' => '', 0 => 'FALSE', 1 => 'TRUE'])
+				{{else}}
+			$form->addSelect('{{$column->name}}', {{$translator|noescape}}, [0 => 'FALSE', 1 => 'TRUE'])
+				{{/if}}
+			{{elseif in_array($column->type->name, ['enum', 'set'], TRUE)}}
+				{{var $options = '['}}
+				{{if $column->nullable}}{{? $options .= "'NULL' => '',"}}{{/if}}
+				{{foreach $column->type->extra as $option}}
+					{{? $options .= "'$option' => '$option', "}}
+				{{/foreach}}
+				{{? $options .= ']'}}
+			$form->addSelect('{{$column->name}}', {{$translator|noescape}}, {{str_replace(', ]', ']', $options)|noescape}})
+			{{elseif in_array($column->type->name, ['text', 'mediumtext', 'longtext', 'blob', 'mediumblob', 'longblob'], TRUE) || in_array($column->type->name, ['varchar', 'char'], TRUE) && $column->type->length >= 250}}
+			$form->addTextArea('{{$column->name}}', {{$translator|noescape}})
+			{{else}}
+				{{if $isForeignKey}}
+					{{var $key = $isForeignKey}}
+					{{? $options = "'CONCAT_WS(\' - \', "}}
+					{{foreach $key->table->columns as $col}}
+						{{foreach $col->keys as $k}}
+							{{if $k instanceof \Bruha\Generator\Utils\Object\Key\PrimaryKey}}
+								{{var $primaryKey = "'" . $key->table->name . "." . "$col->name' => 'key',"}}
+							{{/if}}
+						{{/foreach}}
+						{{? $options .= $key->table->name . '.' . $col->name . ', '}}
+					{{/foreach}}
+					{{? $options = str_replace(', "', ")' => 'value'", $options . '"')}}
+			$form->addSelect('{{$column->name}}', {{$translator|noescape}}, array_reduce($this->{{lcfirst($key->table->sanitizedName)}}Repository->getAll(NULL, NULL, NULL, [{{$primaryKey|noescape}} {{$options|noescape}}]), function ($last, $current) {
+					$last[$current['key']] = $current['value']; return $last;
+				}))->setAttribute('data-live-search', 'true')
+				{{else}}
+			$form->addText('{{$column->name}}', {{$translator|noescape}})
+				{{/if}}
+			{{/if}}
+			{{* Generate HTML5 input types *}}
+			{{if !$isForeignKey && !in_array($column->type->name, ['boolean', 'enum', 'set'], TRUE)}}
+				{{if in_array($column->type->name, ['tinyint', 'smallint', 'mediumint', 'int', 'bigint', 'year'], TRUE)}}
+				->setType('number')
+				{{elseif $column->type->name === 'date'}}
+				->setType('date')
+				{{elseif $column->type->name === 'time'}}
+				->setType('time')
+				{{elseif in_array($column->type->name, ['datetime', 'timestamp'], TRUE)}}
+				->setType('datetime')
+				{{/if}}
+			{{/if}}
+			{{* Generate default values *}}
+			{{if $column->default !== FALSE}}
+				{{$column->default === 'CURRENT_TIMESTAMP' ? "->setDefaultValue((new \DateTime)->format('Y-m-d H:i:s'))" : "->setDefaultValue('$column->default')"|noescape}}
+			{{/if}}
+			{{* Generate placeholders *}}
+			{{? $translator = "\$this->translator->translate('generator.presenter." . lcfirst($table->sanitizedName) . ".component.change.$column->name')"}}
+				->setAttribute('placeholder', {{$translator|noescape}})
+			{{* Generate required validator *}}
+			{{if !$column->nullable  && $column->default === FALSE && mb_strpos($column->extra, 'on update CURRENT_TIMESTAMP') === FALSE && mb_strpos($column->extra, auto_increment) === FALSE}}
+				->addRule(Form::FILLED, $this->translator->translate('generator.common.component.validator.fill'))
+			{{else}}
+				->addCondition(Form::FILLED) {{* Not Working properly with HTML5 validations :/ *}}
+			{{/if}}
+			{{* Generate number validator *}}
+			{{if !$isForeignKey && in_array($column->type->name, ['tinyint', 'smallint', 'mediumint', 'int', 'bigint'], TRUE)}}
+				->addRule(Form::INTEGER, $this->translator->translate('generator.common.component.validator.integer'))
+				{{if $column->type->name === tinyint && mb_strpos($column->type->extra, unsigned) !== FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [0, 255]), [0, 255])
+				{{elseif $column->type->name === tinyint && mb_strpos($column->type->extra, unsigned) === FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [-128, 127]), [-128, 127])
+				{{elseif $column->type->name === smallint && mb_strpos($column->type->extra, unsigned) !== FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [0, 65535]), [0, 65535])
+				{{elseif $column->type->name === smallint && mb_strpos($column->type->extra, unsigned) === FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [-32768, 32767]), [-32768, 32767])
+				{{elseif $column->type->name === mediumint && mb_strpos($column->type->extra, unsigned) !== FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [0, 16777215]), [0, 16777215])
+				{{elseif $column->type->name === mediumint && mb_strpos($column->type->extra, unsigned) === FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [-8388608, 8388607]), [-8388608, 8388607])
+				{{elseif $column->type->name === int && mb_strpos($column->type->extra, unsigned) !== FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [0, 4294967295]), [0, 4294967295])
+				{{elseif $column->type->name === int && mb_strpos($column->type->extra, unsigned) === FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [-2147483648, 2147483647]), [-2147483648, 2147483647])
+				{{elseif $column->type->name === bigint && mb_strpos($column->type->extra, unsigned) !== FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [0, 18446744073709551615]), [0, 18446744073709551615])
+				{{elseif $column->type->name === bigint && mb_strpos($column->type->extra, unsigned) === FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [-9223372036854775808, 9223372036854775807])
+				{{elseif $column->type->name === year && (int)$column->type->length === 4}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [1901, 2155]), [1901, 2155])
+				{{elseif $column->type->name === year && mb_strpos($column->type->extra, unsigned) === FALSE}}
+				->addRule(Form::RANGE, $this->translator->translate('generator.common.component.validator.range', NULL, [0, 99]), [0, 99])
+				{{/if}}
+			{{/if}}
+			{{if !$isForeignKey && in_array($column->type->name, ['float', 'double', 'decimal'], TRUE)}}
+				->addRule(Form::FLOAT, $this->translator->translate('generator.common.component.validator.float'))
+			{{/if}}
+			{{* Generate string validator *}}
+			{{if !$isForeignKey && in_array($column->type->name, ['char', 'varchar', 'tinytext', 'text', 'mediumtext', 'longtext', 'binary', 'varbinary', 'tinyblob', 'blob', 'mediumblob', 'longblob'], TRUE)}}
+				{{if in_array($column->type->name, ['char', 'varchar', 'binary', 'varbinary'], TRUE)}}
+				->addRule(Form::MAX_LENGTH, $this->translator->translate('generator.common.component.validator.length', NULL, [{{$column->type->length}}]), {{$column->type->length}})
+				{{elseif in_array($column->type->name, ['tinytext', 'tinyblob'], TRUE)}}
+				->addRule(Form::MAX_LENGTH, $this->translator->translate('generator.common.component.validator.length', NULL, [255]), 255)
+				{{elseif in_array($column->type->name, ['text', 'blob'], TRUE)}}
+				->addRule(Form::MAX_LENGTH, $this->translator->translate('generator.common.component.validator.length', NULL, [65535]), 65535)
+				{{elseif in_array($column->type->name, ['mediumtext', 'mediumblob'], TRUE)}}
+				->addRule(Form::MAX_LENGTH, $this->translator->translate('generator.common.component.validator.length', NULL, [16777215]), 16777215)
+				{{elseif in_array($column->type->name, ['longtext', 'longblob'], TRUE)}}
+				->addRule(Form::MAX_LENGTH, $this->translator->translate('generator.common.component.validator.length', NULL, [4294967295]), 4294967295)
+				{{/if}}
+			{{/if}}
+		;}
+		{{/foreach}}
+		$form->addSubmit('send', $this->translator->translate('generator.common.component.control.save'));
+		$form->onSuccess[] = $this->changeSubmit;
+		if ($this->primaryKey) $form->setDefaults($this->repository->get($this->primaryKey) ?: []);
+		return $form;
+	}
+}

@@ -1,0 +1,143 @@
+{syntax double}{{$php|noescape}} namespace App{{$module}}\Presenters;
+use \Nette\Application\UI\Form;
+
+abstract class BasePresenter extends \Nette\Application\UI\Presenter {
+	/** @var \Kdyby\Translation\Translator @inject */
+	public $translator;
+	/** @persistent */
+	public $link;
+	/** @persistent */
+	public $locale;
+	/** @var \App{{$module}}\Models\Permissions @inject */
+	public $permissions;
+	protected $columns = [];
+	protected $whereOperators, $orderOperators = [];
+	protected $itemsPerPage = 10;
+	protected $pageLimit = 5;
+	protected $dWC = 0;
+	protected $dOC = 0;
+	protected $primaryKey, $where, $order, $limit, $target = [];
+
+	public function startup() {
+		parent::startup();
+		$this->user->setAuthorizator($this->permissions->getPermissions());
+		$this->template->itemsPerPage = $this->itemsPerPage;
+		$this->template->pageLimit = $this->pageLimit;
+		$this->whereOperators = [
+			'<' => $this->translator->translate('generator.common.component.control.where.operator.less'),
+			'<=' => $this->translator->translate('generator.common.component.control.where.operator.lessEqual'),
+			'=' => $this->translator->translate('generator.common.component.control.where.operator.equal'),
+			'!=' => $this->translator->translate('generator.common.component.control.where.operator.notEqual'),
+			'>=' => $this->translator->translate('generator.common.component.control.where.operator.greaterEqual'),
+			'>' => $this->translator->translate('generator.common.component.control.where.operator.greater'),
+			'LIKE' => $this->translator->translate('generator.common.component.control.where.operator.like'),
+			'NOT LIKE' => $this->translator->translate('generator.common.component.control.where.operator.notLike'),
+			'IS NULL' => $this->translator->translate('generator.common.component.control.where.operator.null'),
+			'IS NOT NULL' => $this->translator->translate('generator.common.component.control.where.operator.notNull'),
+		];
+		$this->orderOperators = [
+			'DESC' => $this->translator->translate('generator.common.component.control.order.operator.desc'),
+			'ASC' => $this->translator->translate('generator.common.component.control.order.operator.asc')
+		];
+	}
+
+	public function actionList(array $where, array $order, array $limit, $target) {
+		if (!$this->user->isAllowed(lcfirst(str_replace([__NAMESPACE__, '\\', 'Presenter'], '', get_called_class())), 'list')) {
+				throw new \Nette\Application\BadRequestException;
+		}
+		foreach ($where as $k => $v) if (!is_array($v) || count($v) !== count(array_filter($v))) unset($where[$k]);
+		foreach ($order as $k => $v) if (is_array($v)) {
+			if (count($v) !== count(array_filter($v)) || count($v) === 3) {
+				unset($order[$k]);
+			} else $order[$k] = $v['mod'] === 'DESC' ? '-' . $v['col'] : $v['col'];
+		} else if ($k === 'add') unset($order[$k]);
+		$this->template->where = $this->where = $where;
+		$this->template->order = $this->order = $order ?: [key($this->columns)];
+		$this->template->limit = $this->limit = $limit ?: ['lim' => $this->itemsPerPage, 'off' => 0];
+		$this->template->target = $this->target = $target ?: FALSE;
+	}
+
+	public function renderList(array $where, array $order, array $limit, $target) {
+		$redrawAll = TRUE;
+		foreach ($where as $k => $v) if ($k === 'add' || count($v) === 4) $redrawAll = FALSE;
+		foreach ($order as $k => $v) if ($k === 'add' || count($v) === 3) $redrawAll = FALSE;
+		$redrawAll ? $this->redrawControl() : $this->redrawControl('control');
+		$this->template->items = $this->repository->getAll($this->where, $this->order, $this->limit);
+		$this->template->pages = $this->repository->getPages($this->where, $this->limit);
+		if (!count($this->template->items)) $this->where ? $this->flashMessage($this->translator->translate('generator.common.component.presenter.found'), 'warning') : $this->flashMessage($this->translator->translate('generator.common.component.presenter.exist'), 'warning');
+	}
+
+	public function renderChange($id, $target) {
+		if (!$id && !$this->user->isAllowed(lcfirst(str_replace([__NAMESPACE__, '\\', 'Presenter'], '', get_called_class())), 'add') || $id && !$this->user->isAllowed(lcfirst(str_replace([__NAMESPACE__, '\\', 'Presenter'], '', get_called_class())), 'edit')) {
+			throw new \Nette\Application\BadRequestException;
+		}
+		$this->template->primaryKey = $this->primaryKey = $id;
+	}
+	
+	protected function createComponentControl() {
+		$form = new Form();
+        $where = $form->addDynamic('where', function (\Nette\Forms\Container $container) {
+			$container->addSelect('col', NULL, $this->columns)->setPrompt($this->translator->translate('generator.common.component.control.where.col'))->setAttribute('class', 'form-control');
+			$container->addSelect('mod', NULL, $this->whereOperators)->setPrompt($this->translator->translate('generator.common.component.control.where.mod'))->setAttribute('class', 'form-control');
+			$container->addText('val')->setAttribute('placeholder', $this->translator->translate('generator.common.component.control.where.val'))->setAttribute('class', 'form-control');
+            $container->addSubmit('remove', $this->translator->translate('generator.common.component.control.where.remove'))->setAttribute('class', 'form-control btn btn-danger remove')->addRemoveOnClick();
+			if (isset($this->where[$this->dWC])) $container->setDefaults($this->where[$this->dWC++]);
+        }, count($this->where) ?: 1);
+        $where->addSubmit('add', $this->translator->translate('generator.common.component.control.where.add'))->setAttribute('class', 'form-control btn btn-primary')->addCreateOnClick(TRUE);
+		$order = $form->addDynamic('order', function (\Nette\Forms\Container $container) {
+			$container->addSelect('col', NULL, $this->columns)->setPrompt($this->translator->translate('generator.common.component.control.order.col'))->setAttribute('class', 'form-control');
+			$container->addSelect('mod', NULL, $this->orderOperators)->setPrompt($this->translator->translate('generator.common.component.control.order.mod'))->setAttribute('class', 'form-control');
+            $container->addSubmit('remove', $this->translator->translate('generator.common.component.control.order.remove'))->setAttribute('class', 'form-control btn btn-danger remove')->addRemoveOnClick();
+			if (isset($this->order[$this->dOC])) {
+				$container->setDefaults(['col' => mb_strpos($this->order[$this->dOC], '-') === 0 ? (mb_substr($this->order[$this->dOC], 1)) : $this->order[$this->dOC],
+					'mod' => mb_strpos($this->order[$this->dOC], '-') === 0 ? 'DESC' : 'ASC'
+				]);
+			$this->dOC++;
+		}
+        }, count($this->order) ?: 1);
+         $order->addSubmit('add', $this->translator->translate('generator.common.component.control.order.add'))->setAttribute('class', 'form-control btn btn-primary')->addCreateOnClick(TRUE);
+		$limit = $form->addContainer('limit');
+			$limit->addText('lim')->setDefaultValue($this->limit['lim'])->setAttribute('class', 'form-control');
+			$limit->addHidden('off', 0);
+		$form->addSubmit('submit', $this->translator->translate('generator.common.component.control.submit'))->setAttribute('class', 'form-control btn btn-success');
+        $form->onSuccess[] = function (Form $form) {
+			if (!$this->ajax) $this->redirect('this', $form->values->where, $form->values->order, ['lim' => $form->values->limit['lim'], 'off' => 0]);
+		};
+        return $form;
+	}
+	
+	public function changeSubmit(Form $form) {
+		try {
+			$this->repository->save($form->values->primaryKey, array_slice($form->getValues(TRUE), 1));
+			$this->flashMessage($this->translator->translate('generator.common.component.presenter.change.success'), 'success');
+		} catch (\PDOException $e) {
+			if ((int)$e->errorInfo[1] === 1062) {
+				$keyInfo = explode(' for key ', str_replace("'", '', \Nette\Utils\Strings::match($e->getMessage(), "~'(.*)'~")[0]));
+				$this->flashMessage($this->translator->translate('generator.common.component.presenter.change.unique', NULL, [$keyInfo[1], $keyInfo[0]]), 'danger');
+			}
+			elseif((int)$e->errorInfo[1] === 1364) {
+				$keyInfo = \Nette\Utils\Strings::match(str_replace("'t", '', $e->getMessage()), "~'(.*)'~")[0];
+				$this->flashMessage($this->translator->translate('generator.common.component.presenter.change.default', NULL, [$keyInfo]), 'danger');
+			} else $this->flashMessage($this->translator->translate('generator.common.component.presenter.change.other', NULL, [$e->getMessage()]), 'danger');
+		}
+		$this->restoreRequest($this->link);
+	}
+
+	public function handleDelete($id) {
+		if (!$this->user->isAllowed(lcfirst(str_replace([__NAMESPACE__, '\\', 'Presenter'], '', get_called_class())), 'delete')) {
+			throw new \Nette\Application\BadRequestException;
+		}
+		try {
+			$this->repository->remove($id);
+			$this->flashMessage($this->translator->translate('generator.common.component.presenter.delete.success'), 'success');
+		} catch (\PDOException $e) {
+			if ((int)$e->errorInfo[1] === 1451) {
+				$key = substr($e->getMessage(), ($start = mb_strpos($e->getMessage(), 'CONSTRAINT `') + 12), mb_strpos($e->getMessage(), '`', $start) - $start);
+				$table = substr($e->getMessage(), ($start = mb_strpos($e->getMessage(), '`.`') + 3), mb_strpos($e->getMessage(), '`,', $start) - $start);
+				$column = substr($e->getMessage(), ($start = mb_strpos($e->getMessage(), 'FOREIGN KEY (`') + 14), mb_strpos($e->getMessage(), '`)', $start) - $start);
+				$this->flashMessage($this->translator->translate('generator.common.component.presenter.delete.foreign', NULL, [$key, $table, $column]), 'danger');
+			} else $this->flashMessage($this->translator->translate('generator.common.component.presenter.delete.other', NULL, [$e->getMessage()]), 'danger');
+		}
+		!$this->ajax ? $this->restoreRequest($this->link) : $this->redrawControl();
+	}
+}

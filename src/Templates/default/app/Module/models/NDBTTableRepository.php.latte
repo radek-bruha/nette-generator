@@ -1,0 +1,56 @@
+{syntax double}{{$php|noescape}} namespace App{{$module}}\Models;
+class {{$table->sanitizedName}}Repository extends BaseRepository {
+	public function __construct($table, \Nette\Database\Context $database) {
+		parent::__construct($table, $database);
+	}
+	
+	/**
+	 * Return table rows
+	 * @param array $where
+	 * @param array $order
+	 * @param array $limit
+	 * @param array $what
+	 * @return \Nette\Database\Table\Selection
+	 */
+	public function getAll(array $where = NULL, array $order = NULL, array $limit = NULL, array $what = NULL) {
+		return parent::getAll($where, $order, $limit, $what);
+	}
+
+	/**
+	 * Return count of pages needed for show table rows
+	 * @param array $where
+	 * @param array $limit
+	 * @return integer
+	 */
+	public function getPages(array $where = NULL, array $limit = NULL) {
+		return parent::getPages($where, $limit);
+	}
+
+	/**
+	 * Return table row
+	 * @param string $primaryKey
+	 * @return \Nette\Database\Table\ActiveRow
+	 */
+	public function get($primaryKey) {
+		return parent::get($primaryKey);
+	}
+
+	/**
+	 * Save table row
+	 * @param type $primaryKey
+	 * @param type $values
+	 * @return \Nette\Database\Table\ActiveRow|boolean
+	 */
+	public function save($primaryKey, array $values) {
+		return parent::save($primaryKey, $values);
+	}
+
+	/**
+	 * Remove table row
+	 * @param string $primaryKey
+	 * @return boolean
+	 */
+	public function remove($primaryKey) {
+		return parent::remove($primaryKey);
+	}
+}

@@ -1,0 +1,76 @@
+{syntax double}{block title}{_generator.template.{{lcfirst($table->sanitizedName)}}.list.title}{/block}
+	{block table}
+	<form l:name='control' class='form-inline ajax' role='form'>
+		<div l:snippet='control'>
+			{var $_form = $form = $control['control']}
+			<div l:inner-foreach="$form['where']->controls as $input" class='where form-group'>{input $input}</div>
+			<div l:inner-foreach="$form['order']->controls as $input" class='order form-group'>{input $input}</div>
+			<div l:inner-foreach="$form['limit']->controls as $input" class='limit form-group'>{input $input}<input l:if='$iterator->last' l:name='submit'></div>
+		</div>
+	</form>
+	<table l:snippet='table' class='table table-striped'>
+		<thead l:translator='generator.template.{{lcfirst($table->sanitizedName)}}.list.table.head'>
+			<tr>
+				<th l:if='$user->isAllowed({{lcfirst($table->sanitizedName) . $column->sanitizedName}}, list)' n:foreach='$table->columns as $column'>{_{{$column->name}}}</th>
+				<th><a l:if='$user->isAllowed({{lcfirst($table->sanitizedName)}}, add)' class='btn btn-xs btn-success' l:href='change 0, $target, link => $presenter->storeRequest()' l:translator='generator.common.component.control'>{_add}</a></th>
+			</tr>
+		</thead>
+		<tbody l:if='count($items)' l:translator='generator.common.component.control'>
+			<tr l:foreach='$items as $item'>
+				{{foreach $table->columns as $column}}
+					{{foreach $column->keys as $key}}
+						{{if $key instanceof \Bruha\Generator\Utils\Object\Key\PrimaryKey}}
+							{{var $primaryKey = $column->name}}
+						{{/if}}
+					{{/foreach}}
+				{{/foreach}}
+				<td l:if='$user->isAllowed({{lcfirst($table->sanitizedName) . $column->sanitizedName}}, list)' n:foreach='$table->columns as $column'>{{capture $content}}
+					{{var $isFK = FALSE}}
+					{{foreach $column->keys as $key}}
+						{{if $key instanceof \Bruha\Generator\Utils\Object\Key\ForeignKey}}
+							{{var $isFK = TRUE}}
+							{{if $target === \Utils\Constants::TARGET_NETTE_DATABASE}}
+							{$item->ref('{{$column->name}}')->{{$key->value}}}
+							{{else}}
+							{$item->{{$key->table->name}} ? $item->{{$key->table->name}}->{{$key->value}} : $item->{{$column->name}}}
+							{{/if}}
+						{{/if}}
+					{{/foreach}}
+					{{if !$isFK}}			
+						{$item->{{$column->name}}
+						{{if in_array($column->type->name, ['date', 'time', 'datetime', 'timestamp'], TRUE)}}
+							{{if $column->nullable}} ? $item->{{$column->name}}->format('{{else}}->format('{{/if}}
+						{{/if}}
+						{{if in_array($column->type->name, ['date', 'datetime', 'timestamp'], TRUE)}}
+							d~~m~~Y
+						{{/if}}
+						{{if in_array($column->type->name, ['time', 'datetime', 'timestamp'], TRUE)}}
+							||H;;i;;s
+						{{/if}}
+						{{if in_array($column->type->name, ['date', 'time', 'datetime', 'timestamp'], TRUE)}}
+							{{if $column->nullable}}') : $item->{{$column->name}}
+							{{else}}
+								')
+							{{/if}}
+						{{/if}}}
+					{{/if}}{{/capture}}{{trim(str_replace(['?', ':', '~~', '||', ';;'], [' ? ', ' : ', '. ', ' ', ':'], preg_replace('~\s+~', '', $content)))|noescape}}</td>
+				<td l:if='!$target'>
+					<a l:if='$user->isAllowed({{lcfirst($table->sanitizedName)}}, edit)' class='btn btn-xs btn-warning' l:href='change $item->{{$primaryKey|noescape}}, $target, link => $presenter->storeRequest()'>{_change}</a>
+					<a l:if='$user->isAllowed({{lcfirst($table->sanitizedName)}}, delete)' class='ajax btn btn-xs btn-danger' l:href='delete! $item->{{$primaryKey|noescape}}, link => $presenter->storeRequest()' data-confirm='{_confirm}'>{_delete}</a>
+				</td>
+				<td l:if='$target'><a href='#' class='btn btn-xs btn-success' onClick='$("#frm-changeTable-{$target|noescape}", window.opener.document).val({$item->{{$primaryKey|noescape}}}); window.close();'>{_choose}</a></td>
+			</tr>
+		</tbody>
+		<tfoot l:if='count($items)'>
+			<tr>
+				<td class='text-center' colspan='{{count($table->columns) + 1}}'>
+					<ul class='pagination pagination-sm'>
+						<li><a class='ajax' l:href="list $where, $order, ['lim' => $limit['lim'], 'off' => 0]">{_generator.common.component.page.first}</a></li>
+						<li l:class="$i === ($limit['off'] + $limit['lim']) / $limit['lim'] ? active" l:for="$i = $limit['off'] / $limit['lim'] + 1 - $pageLimit <= 1 ? 1 : $limit['off'] / $limit['lim'] + 1 - $pageLimit; $i <= ($limit['off'] / $limit['lim'] + 1 + $pageLimit <= $pages ? $limit['off'] / $limit['lim'] + 1 + $pageLimit : $pages); $i++"><a class='ajax' l:href="list  $where, $order, ['lim' => $limit['lim'], 'off' => ($i - 1) * $limit['lim']]">{$i}</a></li>
+						<li><a class='ajax' l:href="list $where, $order, ['lim' => $limit['lim'], 'off' => ($pages - 1) * $limit['lim']]">{_generator.common.component.page.last}</a></li>
+					</ul>
+				</td>
+			</tr>
+		</tfoot>
+	</table>
+	{/block}

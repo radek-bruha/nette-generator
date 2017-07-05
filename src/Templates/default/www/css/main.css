@@ -1,0 +1,4 @@
+form#frm-control div { display: block; margin-bottom: 1em; }
+form#frm-control div input, form#frm-control div select { width: 25%; margin: 0 1em 0.25em 0; }
+form#frm-control div input[type=submit] { width: auto; }
+.ajax-loading { width: 128px; height: 128px; position: fixed; top:0; bottom: 0; left: 0; right: 0; margin: auto; background: url('../images/loading.gif') center center no-repeat; z-index: 999; }

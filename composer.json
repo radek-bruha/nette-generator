@@ -1,0 +1,14 @@
+{
+	"name": "r-bruha/nette-generator",
+	"require": {
+		"php": ">=5.4.0",
+		"kdyby/doctrine": "~2.0",
+		"kdyby/translation": "@dev",
+		"beberlei/DoctrineExtensions": "@dev"
+	},
+	"scripts": {
+        "post-install-cmd": [
+			"php -f index.php"
+        ]
+    }
+}
