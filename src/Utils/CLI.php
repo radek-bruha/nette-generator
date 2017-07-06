@@ -5,7 +5,6 @@
  * @version 1.0
  */
 class CLI {
-
 	/**
 	 * Read content from CLI
 	 * @param bool $asInt
@@ -15,9 +14,9 @@ class CLI {
 	 * @static
 	 */
 	public static function read($asInt = FALSE, array $options = [], \Closure $callback = NULL) {
-		if (!empty($options)) {
-			while ($input = trim(fgets(STDIN))) {
-				if (!in_array($input, $options)) {
+		if(!empty($options)) {
+			while($input = trim(fgets(STDIN))) {
+				if(!in_array($input, $options)) {
 					$callback($input);
 				} else break;
 			}

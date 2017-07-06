@@ -1,0 +1,99 @@
+{syntax double}{block title}{_generator.template.{{lcfirst($table->sanitizedName)}}.list.title}{/block}
+{block table}
+				<form l:name='control' class='form-inline ajax' role='form'>
+					<div l:snippet='control'>
+						{var $form = $control['control']}
+						<div l:inner-foreach="$form['where']->controls as $input" class='where form-group'>{input $input}</div>
+						<div l:inner-foreach="$form['order']->controls as $input" class='order form-group'>{input $input}</div>
+						<div l:inner-foreach="$form['limit']->controls as $input" class='limit form-group'>{input $input}<input l:if='$iterator->last' l:name='submit'></div>
+					</div>
+				</form>
+				<table l:snippet='table' class='table table-striped'>
+					<thead l:translator='generator.template.{{lcfirst($table->sanitizedName)}}.list.table.head'>
+						<tr>
+						{{foreach $table->columns as $column}}
+						{{var $isForeignKey = FALSE}}
+						{{foreach $column->keys as $key}}
+							{{if $key instanceof \Bruha\Generator\Utils\Object\Key\ForeignKey}}
+								{{var $isForeignKey = $key}}
+							{{/if}}
+						{{/foreach}}
+						{{if $isForeignKey}}
+						{{if $target === \Utils\Constants::TARGET_NETTE_DATABASE}}
+						{{var $columnName = mb_substr($column->name, -3) === '_id' ? mb_substr($column->name, 0, -3) : $column->name}}
+							<th l:if='$user->isAllowed(table{{ucfirst($table->sanitizedName) . 'Column' . ucfirst($column->sanitizedName)}}, list)'><a l:href="this $where, $order !== ['-{{$columnName}}.{{$key->value}}'] ? ['-{{$columnName}}.{{$key->value}}'] : ['{{$columnName}}.{{$key->value}}'], $limit">{$order === ['{{$columnName}}.{{$key->value}}'] ? '▲' : ($order === ['-{{$columnName}}.{{$key->value}}'] ? '▼' : '')}{_{{$column->name}}}</a></th>
+						{{else}}
+							<th l:if='$user->isAllowed(table{{ucfirst($table->sanitizedName) . 'Column' . ucfirst($column->sanitizedName)}}, list)'><a l:href="this $where, $order !== ['-{{$key->table->name}}.{{$key->value}}'] ? ['-{{$key->table->name}}.{{$key->value}}'] : ['{{$key->table->name}}.{{$key->value}}'], $limit">{$order === ['{{$key->table->name}}.{{$key->value}}'] ? '▲' : ($order === ['-{{$key->table->name}}.{{$key->value}}'] ? '▼' : '')}{_{{$column->name}}}</a></th>
+						{{/if}}
+						{{else}}
+							<th l:if='$user->isAllowed(table{{ucfirst($table->sanitizedName) . 'Column' . ucfirst($column->sanitizedName)}}, list)'><a l:href="this $where, $order !== ['-{{$table->name}}.{{$column->name}}'] ? ['-{{$table->name}}.{{$column->name}}'] : ['{{$table->name}}.{{$column->name}}'], $limit">{$order === ['{{$table->name}}.{{$column->name}}'] ? '▲' : ($order === ['-{{$table->name}}.{{$column->name}}'] ? '▼' : '')}{_{{$column->name}}}</a></th>
+						{{/if}}
+						{{var $isForeignKey = FALSE}}
+						{{/foreach}}
+							<th l:translator='generator.common.component.control'><a l:if='$user->isAllowed(table{{ucfirst($table->sanitizedName)}}, add)' class='btn btn-xs btn-success' l:href='change 0, $target, link => $presenter->storeRequest()'>{_add}</a> <a l:if='$where' class='ajax btn btn-xs btn-info' l:href='this [], $order, $limit'>{_show}</a></th>
+						</tr>
+					</thead>
+					<tbody l:if='count($items)' l:translator='generator.common.component.control'>
+						<tr l:foreach='$items as $item'>
+							{{foreach $table->columns as $column}}
+								{{foreach $column->keys as $key}}
+									{{if $key instanceof \Bruha\Generator\Utils\Object\Key\PrimaryKey}}
+										{{var $primaryKey = $column->name}}
+									{{/if}}
+								{{/foreach}}
+							{{/foreach}}
+							<td l:if='$user->isAllowed(table{{ucfirst($table->sanitizedName) . 'Column' . ucfirst($column->sanitizedName)}}, list)' n:foreach='$table->columns as $column'>{{capture $content}}
+								{{var $isFK = FALSE}}
+								{{foreach $column->keys as $key}}
+									{{if $key instanceof \Bruha\Generator\Utils\Object\Key\ForeignKey}}
+										{{var $isFK = TRUE}}
+										{{if $target === \Utils\Constants::TARGET_NETTE_DATABASE}}
+										{{var $columnName = mb_substr($column->name, -3) === '_id' ? mb_substr($column->name, 0, -3) : $column->name}}
+										linkContent{{capture $linkContent}}<a class='ajax' l:href="this $where + [['col' => '{{$columnName}}.{{$key->value}}', 'mod' => '=', 'val' => $item->{{$columnName}}->{{$key->value}}]], $order, $limit" title="{_search NULL, [$item->{{$columnName}}->{{$key->value}}, {{$table->sanitizedName}}]}">{$item->{{$columnName}}->{{$key->value}}}</a> <a l:href="{{$key->table->sanitizedName}}:list [['col' => '{{$key->table->name}}.{{$key->value}}', 'mod' => '=', 'val' => $item->{{$columnName}}->{{$key->value}}]]"><span class='glyphicon glyphicon glyphicon-share-alt' title="{_search NULL, [$item->{{$columnName}}->{{$key->value}}, {{$key->table->sanitizedName}}]}" aria-hidden='true'></span></a>{{/capture}}
+										{{else}}
+										linkContent{{capture $linkContent}}<a class='ajax' l:href="this $where + [['col' => '{{$key->table->name}}.{{$key->value}}', 'mod' => '=', 'val' => $item->{{$key->table->name}}->{{$key->value}}]], $order, $limit" title="{_search NULL, [$item->{{$key->table->name}} ? $item->{{$key->table->name}}->{{$key->value}} : $item->{{$column->name}}, {{$table->sanitizedName}}]}">{$item->{{$key->table->name}} ? $item->{{$key->table->name}}->{{$key->value}} : $item->{{$column->name}}}</a> <a l:href="{{$key->table->sanitizedName}}:list [['col' => '{{$key->table->name}}.{{$key->value}}', 'mod' => '=', 'val' => $item->{{$key->table->name}}->{{$key->value}}]]"><span class='glyphicon glyphicon glyphicon-share-alt' title="{_search NULL, [$item->{{$key->table->name}} ? $item->{{$key->table->name}}->{{$key->value}} : $item->{{$column->name}}, {{$key->table->sanitizedName}}]}" aria-hidden='true'></span></a>{{/capture}}
+										{{/if}}
+									{{/if}}
+								{{/foreach}}
+								{{if !$isFK}}
+									{{if $target === \Utils\Constants::TARGET_DOCTRINE2 && in_array($column->type->name, ['tinyblob', 'blob', 'mediumblob', 'longblob'], TRUE) && in_array($column->name, ['image', 'photo', 'picture'], TRUE)}}{? $item->{{$column->name}} = @stream_get_contents($item->{{$column->name}})}{{/if}}
+									{{if in_array($column->type->name, ['tinyblob', 'blob', 'mediumblob', 'longblob'], TRUE) && in_array($column->name, ['image', 'photo', 'picture'], TRUE)}}<img src='{{/if}}
+									{$item->{{$column->name}}
+									{{if in_array($column->type->name, ['tinyblob', 'blob', 'mediumblob', 'longblob'], TRUE) && in_array($column->name, ['image', 'photo', 'picture'], TRUE)}}|dataStream{{/if}}
+									{{if in_array($column->type->name, ['date', 'time', 'datetime', 'timestamp'], TRUE)}}
+										{{if $column->nullable}} ? $item->{{$column->name}}->format('{{else}}->format('{{/if}}
+									{{/if}}
+									{{if in_array($column->type->name, ['date', 'datetime', 'timestamp'], TRUE)}}
+										d~~m~~Y
+									{{/if}}
+									{{if in_array($column->type->name, ['time', 'datetime', 'timestamp'], TRUE)}}
+										||H;;i;;s
+									{{/if}}
+									{{if in_array($column->type->name, ['date', 'time', 'datetime', 'timestamp'], TRUE)}}
+										{{if $column->nullable}}') : $item->{{$column->name}}
+										{{else}}
+											')
+										{{/if}}
+									{{/if}}}
+									{{if in_array($column->type->name, ['tinyblob', 'blob', 'mediumblob', 'longblob'], TRUE) && in_array($column->name, ['image', 'photo', 'picture'], TRUE)}}' alt='&nbsp;'/>{{/if}}
+								{{/if}}{{/capture}}{{trim(str_replace(['?', ':', '~~', '||', ';;', 'linkContent', 'imgsrc', "'alt", "{ ?", "=@"], [' ? ', ' : ', '. ', ' ', ':', isset($linkContent) ? $linkContent : '', 'img src', "' alt", "{?", " = @"], preg_replace('~\s+~', '', $content)))|noescape}}</td>
+							<td l:if='!$target'>
+								<a l:if='$user->isAllowed(table{{ucfirst($table->sanitizedName)}}, edit)' class='btn btn-xs btn-warning' l:href='change $item->{{$primaryKey|noescape}}, $target, link => $presenter->storeRequest()'>{_change}</a>
+								<a l:if='$user->isAllowed(table{{ucfirst($table->sanitizedName)}}, delete)' class='ajax btn btn-xs btn-danger' l:href='delete! $item->{{$primaryKey|noescape}}, link => $presenter->storeRequest()' data-confirm='{_confirm}'>{_delete}</a>
+							</td>
+							<td l:if='$target'><a href='#' class='btn btn-xs btn-success' onClick='$("#frm-changeTable-{$target|noescape}", window.opener.document).val({$item->{{$primaryKey|noescape}}}); window.close();'>{_choose}</a></td>
+						</tr>
+					</tbody>
+					<tfoot l:if='count($items)'>
+						<tr>
+							<td class='text-center' colspan='{{count($table->columns) + 1}}'>
+								<ul class='pagination pagination-sm'>
+									<li><a class='ajax' l:href="this $where, $order, ['lim' => $limit['lim'], 'off' => 0]">{_generator.common.component.page.first}</a></li>
+									<li l:class="$i === ($limit['off'] + $limit['lim']) / $limit['lim'] ? active" l:for="$i = $limit['off'] / $limit['lim'] + 1 - $pageLimit <= 1 ? 1 : $limit['off'] / $limit['lim'] + 1 - $pageLimit; $i <= ($limit['off'] / $limit['lim'] + 1 + $pageLimit <= $pages ? $limit['off'] / $limit['lim'] + 1 + $pageLimit : $pages); $i++"><a class='ajax' l:href="this  $where, $order, ['lim' => $limit['lim'], 'off' => ($i - 1) * $limit['lim']]">{$i}</a></li>
+									<li><a class='ajax' l:href="this $where, $order, ['lim' => $limit['lim'], 'off' => ($pages - 1) * $limit['lim']]">{_generator.common.component.page.last}</a></li>
+								</ul>
+							</td>
+						</tr>
+					</tfoot>
+				</table>
+{/block}

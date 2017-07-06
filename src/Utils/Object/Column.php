@@ -16,7 +16,9 @@ class Column {
 
 	public function __construct($name = NULL, \Bruha\Generator\Utils\Object\Type $type = NULL, $nullable = NULL, array $keys = [], $default = NULL, $extra = NULL, $comment = NULL) {
 		$this->name = $name;
-		$this->sanitizedName = implode('', array_map(function($value) { return ucfirst($value); }, explode('_', $name)));
+		$this->sanitizedName = implode('', array_map(function($value) {
+			return ucfirst($value);
+		}, explode('_', $name)));
 		$this->type = $type;
 		$this->nullable = $nullable;
 		$this->keys = $keys;

@@ -24,11 +24,11 @@ abstract class BaseRepository extends \Nette\Object {
 			switch ($w['mod']) {
 				case 'IS NULL': $table->where($w['col'] . ' IS NULL'); break;
 				case 'IS NOT NULL': $table->where($w['col'] . ' IS NOT NULL'); break;
-				default: $table->where($w['col'] . ' ' . $w['mod'] . ' ?', in_array($w['mod'], ['LIKE', 'NOT LIKE']) ? "%{$w['val']}%" : $w['val']); break;
+				default: $table->where($w['col'] . ' ' . $w['mod'] . ' ?', in_array($w['mod'], ['LIKE', 'NOT LIKE'], TRUE) ? "%{$w['val']}%" : $w['val']); break;
 			}
 		}
 		if (!empty($order)) foreach ($order as $o) $table->order(mb_strpos($o, '-') === 0 ? (mb_substr($o, 1) . ' DESC') : $o);
-		if (!empty($limit)) $table->limit($limit['lim'], $limit['off']);
+		if (!empty($limit)) $table->limit((int)$limit['lim'], (int)$limit['off']);
 		if (!empty($what) && array_values($what) === ['key', 'value']) return $table->fetchAll();
 		return $table;
 	}
@@ -61,7 +61,10 @@ abstract class BaseRepository extends \Nette\Object {
 	 */
 	public function save($primaryKey, array $values) {
 		$table = $this->database->table($this->table);
-		foreach ($values as $key => $value) if ($value === '') $values[$key] = NULL;
+		foreach ($values as $key => $value) {
+			if ($value === 'NULL') $values[$key] = NULL;
+			if ($value instanceof \Nette\Http\FileUpload && $value->temporaryFile !== NULL) $values[$key] = file_get_contents($value->temporaryFile);
+		}
 		return ($primaryKey = $primaryKey ?: FALSE) ? (($row = $this->get($primaryKey)) ? $row->update($values) : FALSE) : $table->insert($values);
 	}
 

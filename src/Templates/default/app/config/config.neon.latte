@@ -1,4 +1,4 @@
-{syntax double}{{? $netteConfig['nette']['database']['default']['reflection'] = $source === \Utils\Constants::SOURCE_MYSQL_CONVENTIONAL ? 'conventional' : 'discovered'}}
+{syntax double}{{? $netteConfig['database']['reflection'] = $source === \Utils\Constants::SOURCE_MYSQL_CONVENTIONAL ? 'static' : 'discovered'}}
 {{? $netteConfig['services']['permissions'] = new \Nette\Neon\Entity('App' . "$module\Models\Permissions", NULL)}}
 {{foreach $tables as $table}}
 {{? $netteConfig['services'][lcfirst($table->sanitizedName) . 'Repository'] = new \Nette\Neon\Entity('App' . "$module\Models\\$table->sanitizedName" . 'Repository', [$table->name])}}

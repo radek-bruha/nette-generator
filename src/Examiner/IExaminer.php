@@ -13,30 +13,7 @@ interface IExaminer {
 
 	/**
 	 * Gets list of database tables
-	 * @retrun array
+	 * @retrun array of \Bruha\Generator\Utils\Object\Table objects
 	 */
 	public function getTables();
-
-	/**
-	 * Gets list of table columns
-	 * @param string $table Table name
-	 * @return array
-	 */
-	public function getColumns($table);
-
-	/**
-	 * Gets list of column keys
-	 * @param string $table Table name
-	 * @param string $column Column name
-	 * @return array
-	 */
-	public function getColumnKeys($table, $column);
-
-	/**
-	 * Gets list of column foreign keys
-	 * @param type $table Table name
-	 * @param type $column Column name
-	 * @return array
-	 */
-	public function getColumnForeignKeys($table, $column);
 }

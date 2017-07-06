@@ -32,14 +32,17 @@ abstract class BaseRepository extends \Nette\Object {
 			$table->add('select', new \Doctrine\ORM\Query\Expr\Select(mb_substr($sql, 0, -2)));
 		}
 		
-		$i = 0;
+		$i = 0; $joinedTables = [];
 		if (!empty($where)) foreach ($where as $w) if ($w['val'] !== '') {
 			$joinTable = explode('.', $w['col']);
 			$joinTableColumn = $joinTable[1];
 			$joinTable = $joinTable[0];
 			$joinTableSanitized = implode('', array_map(function($value) { return ucfirst($value); }, explode('_', $joinTable)));
 			if ($joinTableSanitized !== $this->className) {
-				$table->leftJoin("$this->className.$joinTable", $joinTableSanitized);
+				if (!in_array($this->className.$joinTable, $joinedTables, TRUE)) {
+					$table->leftJoin("$this->className.$joinTable", $joinTableSanitized);
+					$joinedTables[] = $this->className.$joinTable;
+				}
 				switch ($w['mod']) {
 					case 'IS NULL': $table->andWhere($table->expr()->isNull("$joinTableSanitized.$joinTableColumn")); break;
 					case 'IS NOT NULL': $table->andWhere($table->expr()->isNotNull("$joinTableSanitized.$joinTableColumn")); break;
@@ -59,7 +62,10 @@ abstract class BaseRepository extends \Nette\Object {
 			$joinTable = $joinTable[0];
 			$joinTableSanitized = implode('', array_map(function($value) { return ucfirst($value); }, explode('_', $joinTable)));
 			if ($joinTableSanitized !== $this->className) {
-				$table->leftJoin("$this->className.$joinTable", $joinTableSanitized);
+				if (!in_array($this->className.$joinTable, $joinedTables, TRUE)) {
+					$table->leftJoin("$this->className.$joinTable", $joinTableSanitized);
+					$joinedTables[] = $this->className.$joinTable;
+				}
 				$table->addOrderBy($joinTableSanitized . '.' . mb_substr($o, mb_strpos($o, '.') + 1), mb_strpos($o, '-') === 0 ? 'DESC' : 'ASC');
 			} else {
 				$table->addOrderBy($this->className . '.' . mb_substr($o, mb_strpos($o, '.') + 1), mb_strpos($o, '-') === 0 ? 'DESC' : 'ASC');
@@ -77,14 +83,17 @@ abstract class BaseRepository extends \Nette\Object {
 	 */
 	public function getPages(array $where = NULL, array $limit = NULL) {
 		$table = $this->dataAccessObject->createQueryBuilder()->select("COUNT($this->className)")->from($this->fullClassName, $this->className);
-		$i = 0;
+		$i = 0; $joinedTables = [];
 		if (!empty($where)) foreach ($where as $w) if ($w['val'] !== '') {
 			$joinTable = explode('.', $w['col']);
 			$joinTableColumn = $joinTable[1];
 			$joinTable = $joinTable[0];
 			$joinTableSanitized = implode('', array_map(function($value) { return ucfirst($value); }, explode('_', $joinTable)));
 			if ($joinTableSanitized !== $this->className) {
-				$table->leftJoin("$this->className.$joinTable", $joinTableSanitized);
+				if (!in_array($this->className.$joinTable, $joinedTables, TRUE)) {
+					$table->leftJoin("$this->className.$joinTable", $joinTableSanitized);
+					$joinedTables[] = $this->className.$joinTable;
+				}
 				switch ($w['mod']) {
 					case 'IS NULL': $table->andWhere($table->expr()->isNull("$joinTableSanitized.$joinTableColumn")); break;
 					case 'IS NOT NULL': $table->andWhere($table->expr()->isNotNull("$joinTableSanitized.$joinTableColumn")); break;
@@ -153,7 +162,8 @@ abstract class BaseRepository extends \Nette\Object {
 		if (isset($classMetadata->table['indexes'])) foreach ($classMetadata->table['indexes'] as $m) $indexes[] = $m['columns'][0];	
 		$entity = ($primaryKey = $primaryKey ?: FALSE) ? $this->dataAccessObject->find($primaryKey) : new $this->fullClassName();
 		foreach ($values as $key => $value) {
-			if ($value === '') $value = NULL;
+			if ($value === 'NULL') $values[$key] = $value = NULL;
+			if ($value instanceof \Nette\Http\FileUpload && $value->temporaryFile !== NULL) $values[$key] = $value = file_get_contents($value->temporaryFile);
 			$column = array_slice(array_filter($indexes, function($value) use ($key) { return mb_strpos($value, $key) !== FALSE; }), 0, 1);
 			if (!empty($column)) {
 				$key = str_replace('_id', '', $key);
@@ -168,7 +178,7 @@ abstract class BaseRepository extends \Nette\Object {
 		}
 		try {
 			$this->dataAccessObject->save($entity);
-		} catch(\Kdyby\Doctrine\DuplicateEntryException $e) {
+		} catch(\Doctrine\DBAL\Exception\UniqueConstraintViolationException $e) {
 			$pdo = new \PDOException($e->getPrevious()->getPrevious()->getMessage(), $e->getPrevious()->getPrevious()->getCode());
 			$pdo->errorInfo = $e->getPrevious()->getPrevious()->errorInfo;
 			throw $pdo;
@@ -184,7 +194,7 @@ abstract class BaseRepository extends \Nette\Object {
 	public function remove($primaryKey) {
 		try {
 			$this->dataAccessObject->delete($this->dataAccessObject->find($primaryKey));
-		} catch (\Kdyby\Doctrine\DBALException $e) {
+		} catch (\Doctrine\DBAL\DBALException $e) {
 			$pdo = new \PDOException($e->getPrevious()->getPrevious()->getMessage(), $e->getPrevious()->getPrevious()->getCode());
 			$pdo->errorInfo = $e->getPrevious()->getPrevious()->errorInfo;
 			throw $pdo;

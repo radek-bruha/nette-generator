@@ -13,7 +13,9 @@ class Table {
 
 	public function __construct($name = NULL, $comment = NULL, array $colums = [], $state = NULL) {
 		$this->name = $name;
-		$this->sanitizedName = implode('', array_map(function($value) { return ucfirst($value); }, explode('_', $name)));
+		$this->sanitizedName = implode('', array_map(function($value) {
+			return ucfirst($value);
+		}, explode('_', $name)));
 		$this->comment = $comment;
 		$this->columns = $colums;
 		$this->state = $state;
